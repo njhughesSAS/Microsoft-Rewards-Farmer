@@ -6,6 +6,8 @@ import random
 import urllib.parse
 import ipapi
 import schedule
+import tqdm
+
 
 from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
@@ -274,7 +276,7 @@ def completeDailySetQuiz(browser: WebDriver, cardNumber: int, numberOfQuestions:
     browser.switch_to.window(window_name = browser.window_handles[0])
     time.sleep(2)
 
-def completeDailySetTrueOrFalse(browser: WebDriver, cardNumber: int):
+def completeDailySetVariableActivity(browser: WebDriver, cardNumber: int):
     time.sleep(2)
     browser.find_element_by_xpath('//*[@id="daily-sets"]/mee-card-group[1]/div/mee-card[' + str(cardNumber) + ']/div/card-content/mee-rewards-daily-set-item-content/div/div[3]/a').click()
     time.sleep(1)
@@ -282,10 +284,29 @@ def completeDailySetTrueOrFalse(browser: WebDriver, cardNumber: int):
     time.sleep(8)
     try :
         browser.find_element_by_xpath('//*[@id="rqStartQuiz"]').click()
-    except NoSuchElementException:
-        time.sleep(random.randint(5, 9))
-        return
-    waitUntilVisible(browser, By.XPATH, '//*[@id="currentQuestionContainer"]/div/div[1]', 10)
+        waitUntilVisible(browser, By.XPATH, '//*[@id="currentQuestionContainer"]/div/div[1]', 3)
+    except (NoSuchElementException, TimeoutException):
+        try:
+            counter = str(browser.find_element_by_xpath('//*[@id="QuestionPane0"]/div[2]').get_attribute('innerHTML'))[:-1][1:]
+            numberOfQuestions = max([int(s) for s in counter.split() if s.isdigit()])
+            for question in range(numberOfQuestions):
+                browser.execute_script('document.evaluate("//*[@id=\'QuestionPane' + str(question) + '\']/div[1]/div[2]/a[' + str(random.randint(1, 3)) + ']/div", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.click()')
+                time.sleep(5)
+                browser.find_element_by_xpath('//*[@id="AnswerPane' + str(question) + '"]/div[1]/div[2]/div[4]/a/div/span/input').click()
+                time.sleep(3)
+            time.sleep(5)
+            browser.close()
+            time.sleep(2)
+            browser.switch_to.window(window_name=browser.window_handles[0])
+            time.sleep(2)
+            return
+        except NoSuchElementException:
+            time.sleep(random.randint(5, 9))
+            browser.close()
+            time.sleep(2)
+            browser.switch_to.window(window_name = browser.window_handles[0])
+            time.sleep(2)
+            return
     time.sleep(3)
     correctAnswer = browser.execute_script("return _w.rewardsQuizRenderInfo.correctAnswer")
     if browser.find_element_by_id("rqAnswerOption0").get_attribute("data-option") == correctAnswer:
@@ -296,6 +317,41 @@ def completeDailySetTrueOrFalse(browser: WebDriver, cardNumber: int):
     browser.close()
     time.sleep(2)
     browser.switch_to.window(window_name = browser.window_handles[0])
+    time.sleep(2)
+
+def completeDailySetThisOrThat(browser: WebDriver, cardNumber: int):
+    time.sleep(2)
+    browser.find_element_by_xpath('//*[@id="daily-sets"]/mee-card-group[1]/div/mee-card[' + str(cardNumber) + ']/div/card-content/mee-rewards-daily-set-item-content/div/div[3]/a').click()
+    time.sleep(1)
+    browser.switch_to.window(window_name=browser.window_handles[1])
+    time.sleep(8)
+    browser.find_element_by_xpath('//*[@id="rqStartQuiz"]').click()
+    waitUntilVisible(browser, By.XPATH, '//*[@id="currentQuestionContainer"]/div/div[1]', 10)
+    time.sleep(3)
+    for question in range(10):
+        answerEncodeKey = browser.execute_script("return _G.IG")
+
+        answer1 = browser.find_element_by_id("rqAnswerOption0")
+        answer1Title = answer1.get_attribute('data-option')
+        answer1Code = browser.execute_script("var IG = \"" + answerEncodeKey + "\"; function getAnswerCode(n){for (var r, t = 0, i = 0; i < n.length; i++) t += n.charCodeAt(i); return r = parseInt(IG.substr(IG.length - 2), 16), t += r, t.toString();} return getAnswerCode(\"" + answer1Title + "\");")
+
+        answer2 = browser.find_element_by_id("rqAnswerOption1")
+        answer2Title = answer2.get_attribute('data-option')
+        answer2Code = browser.execute_script("var IG = \"" + answerEncodeKey + "\"; function getAnswerCode(n){for (var r, t = 0, i = 0; i < n.length; i++) t += n.charCodeAt(i); return r = parseInt(IG.substr(IG.length - 2), 16), t += r, t.toString();} return getAnswerCode(\"" + answer2Title + "\");")
+
+        correctAnswerCode = browser.execute_script("return _w.rewardsQuizRenderInfo.correctAnswer")
+
+        if (answer1Code == correctAnswerCode):
+            answer1.click()
+            time.sleep(8)
+        elif (answer2Code == correctAnswerCode):
+            answer2.click()
+            time.sleep(8)
+
+    time.sleep(5)
+    browser.close()
+    time.sleep(2)
+    browser.switch_to.window(window_name=browser.window_handles[0])
     time.sleep(2)
 
 def getDashboardData(browser: WebDriver) -> dict:
@@ -317,7 +373,10 @@ def completeDailySet(browser: WebDriver):
                 print('[DAILY SET]', 'Completing search of card ' + str(cardNumber))
                 completeDailySetSearch(browser, cardNumber)
             if activity['promotionType'] == "quiz":
-                if activity['pointProgressMax'] == 40:
+                if activity['pointProgressMax'] == 50:
+                    print('[DAILY SET]', 'Completing This or That of card ' + str(cardNumber))
+                    completeDailySetThisOrThat(browser, cardNumber)
+                elif activity['pointProgressMax'] == 40:
                     print('[DAILY SET]', 'Completing quiz of card ' + str(cardNumber))
                     completeDailySetQuiz(browser, cardNumber, 4)
                 elif activity['pointProgressMax'] == 30:
@@ -334,8 +393,8 @@ def completeDailySet(browser: WebDriver):
                         print('[DAILY SET]', 'Completing poll of card ' + str(cardNumber))
                         completeDailySetSurvey(browser, cardNumber)
                     else:
-                        print('[DAILY SET]', 'Completing True or False of card ' + str(cardNumber))
-                        completeDailySetTrueOrFalse(browser, cardNumber)
+                        print('[DAILY SET]', 'Completing quiz of card ' + str(cardNumber))
+                        completeDailySetVariableActivity(browser, cardNumber)
 
 def getAccountPoints(browser: WebDriver) -> int:
     return getDashboardData(browser)['userStatus']['availablePoints']
@@ -358,11 +417,14 @@ def completePunchCards(browser: WebDriver):
     for punchCard in punchCards:
         if punchCard['parentPromotion'] != None and punchCard['childPromotions'] != None and punchCard['parentPromotion']['complete'] == False and punchCard['parentPromotion']['promotionType'].split(',')[0] == "urlreward" and punchCard['parentPromotion']['pointProgressMax'] != 0:
             url = punchCard['parentPromotion']['attributes']['destination']
-            completePunchCard(browser, url, punchCard['childPromotions'])
+            path = url.replace('https://account.microsoft.com/rewards/dashboard/','')
+            userCode = path[:4]
+            dest = 'https://account.microsoft.com/rewards/dashboard/' + userCode + path.split(userCode)[1]
+            completePunchCard(browser, dest, punchCard['childPromotions'])
     time.sleep(2)
     browser.get('https://account.microsoft.com/rewards/')
     time.sleep(2)
-            
+
 def completeMorePromotionSearch(browser: WebDriver, cardNumber: int):
     browser.find_element_by_xpath('//*[@id="more-activities"]/div/mee-card[' + str(cardNumber) + ']/div/card-content/mee-rewards-more-activities-card-item/div/div[3]/a').click()
     time.sleep(1)
@@ -373,7 +435,7 @@ def completeMorePromotionSearch(browser: WebDriver, cardNumber: int):
     browser.switch_to.window(window_name = browser.window_handles[0])
     time.sleep(2)
 
-def completeMorePromotionQuiz(browser: WebDriver, cardNumber: int):
+def completeMorePromotionQuiz(browser: WebDriver, cardNumber: int, numberOfQuestions: int):
     browser.find_element_by_xpath('//*[@id="more-activities"]/div/mee-card[' + str(cardNumber) + ']/div/card-content/mee-rewards-more-activities-card-item/div/div[3]/a').click()
     time.sleep(1)
     browser.switch_to.window(window_name=browser.window_handles[1])
@@ -381,7 +443,7 @@ def completeMorePromotionQuiz(browser: WebDriver, cardNumber: int):
     browser.find_element_by_xpath('//*[@id="rqStartQuiz"]').click()
     waitUntilVisible(browser, By.XPATH, '//*[@id="currentQuestionContainer"]/div/div[1]', 10)
     time.sleep(3)
-    for question in range(3):
+    for question in range(numberOfQuestions):
         points = int((browser.find_elements_by_class_name('rqECredits')[0]).get_attribute("innerHTML"))
         answer = 0
         while (int((browser.find_elements_by_class_name('rqECredits')[0]).get_attribute("innerHTML")) == points):
@@ -389,6 +451,24 @@ def completeMorePromotionQuiz(browser: WebDriver, cardNumber: int):
             time.sleep(5)
             answer += 1
         time.sleep(5)
+    time.sleep(5)
+    browser.close()
+    time.sleep(2)
+    browser.switch_to.window(window_name=browser.window_handles[0])
+    time.sleep(2)
+
+def completeMorePromotionABC(browser: WebDriver, cardNumber: int):
+    browser.find_element_by_xpath('//*[@id="more-activities"]/div/mee-card[' + str(cardNumber) + ']/div/card-content/mee-rewards-more-activities-card-item/div/div[3]/a').click()
+    time.sleep(1)
+    browser.switch_to.window(window_name=browser.window_handles[1])
+    time.sleep(8)
+    counter = str(browser.find_element_by_xpath('//*[@id="QuestionPane0"]/div[2]').get_attribute('innerHTML'))[:-1][1:]
+    numberOfQuestions = max([int(s) for s in counter.split() if s.isdigit()])
+    for question in range(numberOfQuestions):
+        browser.execute_script('document.evaluate("//*[@id=\'QuestionPane' + str(question) + '\']/div[1]/div[2]/a[' + str(random.randint(1, 3)) + ']/div", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.click()')
+        time.sleep(5)
+        browser.find_element_by_xpath('//*[@id="AnswerPane' + str(question) + '"]/div[1]/div[2]/div[4]/a/div/span/input').click()
+        time.sleep(3)
     time.sleep(5)
     browser.close()
     time.sleep(2)
@@ -438,8 +518,12 @@ def completeMorePromotions(browser: WebDriver):
             if promotion['promotionType'] == "urlreward":
                 completeMorePromotionSearch(browser, i)
             elif promotion['promotionType'] == "quiz":
-                if promotion['pointProgressMax'] == 30:
-                    completeMorePromotionQuiz(browser, i)
+                if promotion['pointProgressMax'] == 10:
+                    completeMorePromotionABC(browser, i)
+                elif promotion['pointProgressMax'] == 30:
+                    completeMorePromotionQuiz(browser, i, 3)
+                elif promotion['pointProgressMax'] == 40:
+                    completeMorePromotionQuiz(browser, i, 4)
                 elif promotion['pointProgressMax'] == 50:
                     completeMorePromotionThisOrThat(browser, i)
 
@@ -462,9 +546,11 @@ def getRemainingSearches(browser: WebDriver):
         #Level 2 US
         searchPoints = 5
     remainingDesktop = int((targetDesktop - progressDesktop) / searchPoints)
-    progressMobile = counters['mobileSearch'][0]['pointProgress']
-    targetMobile = counters['mobileSearch'][0]['pointProgressMax']
-    remainingMobile = int((targetMobile - progressMobile) / searchPoints)
+    remainingMobile = 0
+    if dashboard['userStatus']['levelInfo']['activeLevel'] != "Level1":
+        progressMobile = counters['mobileSearch'][0]['pointProgress']
+        targetMobile = counters['mobileSearch'][0]['pointProgressMax']
+        remainingMobile = int((targetMobile - progressMobile) / searchPoints)
     return(remainingDesktop, remainingMobile)
 
 
@@ -474,6 +560,10 @@ def schedule_next_run(): # set next run for random hour and minute each day
    schedule.clear()
    print("Scheduled for {}".format(time_str))
    schedule.every().day.at(time_str).do(run)
+   
+def sleep_bar(sleep_time):
+    for i in tqdm.tqdm(range(sleep_time)):#progress bar for sleep between accounts and runs
+        time.sleep(1)
 
 
 def run():
@@ -491,11 +581,7 @@ def run():
         completeDailySet(browser)
         print('[DAILY SET]', 'Completed the Daily Set successfully !')
         print('[PUNCH CARDS]', 'Trying to complete the Punch Cards...')
-        try:
-            completePunchCards(browser)#Check for holiday punch card error
-        except:
-            print("Todays punch card had an error")
-            browser.get('https://account.microsoft.com/rewards/')
+        completePunchCards(browser)
         print('[PUNCH CARDS]', 'Completed the Punch Cards successfully !')
         print('[MORE PROMO]', 'Trying to complete More Promotions...')
         completeMorePromotions(browser)
@@ -507,16 +593,20 @@ def run():
         print('[BING]', 'Finished Desktop and Edge Bing searches !')
         browser.quit()
 
-        browser = browserSetup(True, MOBILE_USER_AGENT)
-        print('[LOGIN]', 'Logging-in...')
-        login(browser, account['username'], account['password'], True)
-        print('[LOGIN]', 'Logged-in successfully !')
-        print('[BING]', 'Starting Mobile Bing searches...')
         if remainingSearchesM != 0:
+            browser = browserSetup(True, MOBILE_USER_AGENT)
+            print('[LOGIN]', 'Logging-in...')
+            login(browser, account['username'], account['password'], True)
+            print('[LOGIN]', 'Logged-in successfully !')
+            print('[BING]', 'Starting Mobile Bing searches...')
             bingSearches(browser, remainingSearchesM, True)
-        print('[BING]', 'Finished Mobile Bing searches !')
-        browser.quit()
+            print('[BING]', 'Finished Mobile Bing searches !')
+            browser.quit()
+        
         print('[POINTS]', 'You have earned', str(POINTS_COUNTER - startingPoints), 'points today !', '\n')
+        time_sleep = random.randint(1200, 5400)#random sleep time between accounts to look less bot like
+        sleep_bar(time_sleep) #progress bar for sleep between accounts
+    sleep_bar(10800)#sleep so job will not happen twice in a day
     schedule_next_run() #set a new hour and minut for the next day
     return schedule.CancelJob #cancel current time schedule
 
