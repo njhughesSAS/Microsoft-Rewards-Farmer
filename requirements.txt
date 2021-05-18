@@ -1,9 +1,12 @@
+selenium==3.8.0
+requests==2.24.0
+tqdm==4.54.1
+ipapi==1.0.4
+schedule==0.6.0
+
 certifi
 chardet
 idna
-requests
-selenium
 urllib3
-ipapi
 telegram-send
 pylint
